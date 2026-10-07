@@ -37,9 +37,20 @@ final class ReminderFirer {
 
     func start() {
         guard timer == nil else { return }
-        // 阻止 App Nap（否则菜单栏应用空闲时计时器被暂停，到点不触发）
+        // 阻止 App Nap（否则菜单栏应用空闲时计时器被暂停，到点不触发）。
+        //
+        // ⚠️ 必须用 `.userInitiatedAllowingIdleSystemSleep`，**绝不能用 `.userInitiated`**：
+        //    `.userInitiated` 的掩码（0x00FFFFFF）里**包含 `idleSystemSleepDisabled`（1<<20）**，
+        //    于是 AppKit 会在系统层面挂上一条 `PreventUserIdleSystemSleep` 电源断言；
+        //    而这个 activity 是跟着进程常驻、永不释放的 → **机器从此无法空闲休眠，电池狂掉**。
+        //    2026-10-07 用户实测：`pmset -g assertions` 里 ScheduleBar 的这条断言连续挂了 **34 小时**。
+        //    `...AllowingIdleSystemSleep` 只是把「阻止空闲睡眠」这**一个位**去掉，
+        //    其余（userInitiated 类别 → 抑制 App Nap、抑制突然终止/自动终止）原样保留，
+        //    所以 10 秒轮询照常准时，功能不变。
+        //
+        // ⚠️ 回归判据（改完必须自己验一遍）：`pmset -g assertions | grep ScheduleBar` 应**无输出**。
         activity = ProcessInfo.processInfo.beginActivity(
-            options: [.userInitiated], reason: "定时提醒轮询")
+            options: [.userInitiatedAllowingIdleSystemSleep], reason: "定时提醒轮询")
 
         let t = DispatchSource.makeTimerSource(queue: .main)
         t.schedule(deadline: .now() + 3, repeating: 10, leeway: .seconds(2))
