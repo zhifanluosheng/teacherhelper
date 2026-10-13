@@ -13,6 +13,9 @@ struct PersonalScheduleView: View {
     @EnvironmentObject var store: ScheduleStore
     @EnvironmentObject var coordinator: AppCoordinator
 
+    /// 明暗主题 —— 只用于给「早自习淡绿底色」挑透明度（见下）
+    @Environment(\.colorScheme) private var colorScheme
+
     @State private var selected: ScheduleCellID? = nil
     @State private var editing: ScheduleCellID? = nil
 
@@ -44,8 +47,9 @@ struct PersonalScheduleView: View {
     //
     // 用户原话：「早自习和第1节行间距调大一些，早自习加一个淡淡的底色，和上课区分一下」。
     // 早自习不是「课」，混在编号节次里容易看串，所以给它两件事：
-    //   ① 一条**淡底色带** —— 故意用中性灰（`Color.primary` 低透明度），跟着明暗主题自适应。
-    //      ⚠️ 不要用橙 / 蓝 / 紫 / 青：那几个是课程色（7班 / 8班 / 巡班…），用了会被误读成某节课。
+    //   ① 一条**淡底色带** —— 2026-10-13 用户先要「淡淡的底色」，随后指定**淡绿色**。
+    //      ⚠️ 绿**不在**课程配色里（课程色只有橙 / 蓝 / 紫 / 青），所以不会被误读成某节课；
+    //         改色时务必仍避开橙蓝紫青。
     //   ② 它下面**多留一段空白**，把「早自习」和「第1节」在视觉上分开。
     // ⚠️ 只按名字认（默认只有「早自习」）。以后要把「午自习 / 晚自习」也这样处理，往这个集合里加名字即可。
     private static let nonClassPeriods: Set<String> = ["早自习"]
@@ -53,8 +57,11 @@ struct PersonalScheduleView: View {
     private static let nonClassBandPad: CGFloat = 5
     /// 底色带**之外**再留的底部空白 → 与下一节的总间距 = 本值 + LazyVStack 的 spacing(8)
     private static let nonClassGapBelow: CGFloat = 12
-    /// 淡底色本身（中性灰，压在课程色下面不抢眼）
-    private static let nonClassTint = Color.primary.opacity(0.07)
+    /// 淡绿底色本身。
+    /// 深色主题下同一个透明度会糊成一团、看不出是绿的，所以按主题给两档透明度。
+    private var nonClassTint: Color {
+        Color.green.opacity(colorScheme == .dark ? 0.22 : 0.16)
+    }
 
     private func isNonClassPeriod(_ label: String) -> Bool {
         Self.nonClassPeriods.contains(label)
@@ -125,7 +132,7 @@ struct PersonalScheduleView: View {
                                         if isNonClassPeriod(label) {
                                             // ⚠️ 装饰层一律关掉命中测试（本项目铁律）：否则这条带子会盖住
                                             //    格子的拖拽落点 →「有高亮、松手没反应」（2.5.5 踩过一次）。
-                                            RoundedRectangle(cornerRadius: 8).fill(Self.nonClassTint)
+                                            RoundedRectangle(cornerRadius: 8).fill(nonClassTint)
                                                 .allowsHitTesting(false)
                                         }
                                     }
